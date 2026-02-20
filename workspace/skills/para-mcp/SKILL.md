@@ -8,6 +8,28 @@ metadata: {"nanobot":{"emoji":"📚"}}
 
 Use this skill when user wants to list, create, update, or delete PARA documents.
 
+## Intent Triggers (Vietnamese)
+
+When user says phrases like:
+
+- `thêm ý tưởng vào project para-mcp`
+- `lưu ý tưởng này vào para`
+- `ghi lại ý tưởng này`
+- `thêm vào thư viện para`
+
+Treat this as a **write request**, not a brainstorming request.
+
+You MUST call PARA tools directly (prefer `add_document`) instead of asking follow-up confirmation questions.
+
+Default mapping for idea-capture prompts:
+
+- `category`: `01.projects`
+- `name`: `Ý tưởng: <short title from user prompt>`
+- `content`: full user idea text
+- `tags`: `idea,para-mcp`
+
+After successful tool execution, return the created document ID.
+
 ## Paths
 
 - para-mcp source (read-only): `/home/picoclaw/.picoclaw/workspace/para-mcp`
@@ -24,18 +46,46 @@ cd /home/picoclaw/.picoclaw/workspace/para-mcp && go run . --data-dir /home/pico
 
 ## Operations
 
-- List documents: `list` or `list 01.projects`
-- Show status: `status`
-- Show stats: `stats`
-- Add document:
-  - Short content: `add <category> "<name>" --content="..." --tags="a,b"`
-  - Long content (from web fetch, file, etc.): **2-step pattern** (see below)
-- Update:
-  - `update <id> --name="..." --content="..." --tags="a,b"`
-- Delete:
-  - `delete <id> --force`
-- Link entities:
-  - `link <from-id> <to-id>` / `unlink <from-id> <to-id>`
+- List documents: `list_documents` or `list_documents category=01.projects`
+- Show status: `get_status`
+- Show stats: `get_stats`
+- Get document: `get_document id=<ID>` or `get_document index=1` (from list_documents)
+- Add document: `add_document name="..." category="01.projects" content="..." tags="..."`
+- Update document: `update_document id=<ID> name="..." content="..."` or `update_document index=1 name="..."`
+- Delete document: `delete_document id=<ID>` or `delete_document index=1`
+- Link entities: `link_entities from_id=<ID> to_id=<ID>` or `link_entities from_index=1 to_index=2`
+- Unlink entities: `unlink_entities from_id=<ID> to_id=<ID>` or `unlink_entities from_index=1 to_index=2`
+
+## Index-Based Lookup
+
+When you call `list_documents`, the output shows document numbers like `[01]`, `[02]`, etc. You can use these indices directly in other tools instead of copying IDs:
+
+```
+Found 5 document(s):
+
+[01] Ý tưởng: YouTube transcript vào PARA (01.projects)
+      Tags: idea, youtube, transcript
+      ID: 3ca920c5-1c66-4a66-b5fe-103c83c87c70
+      Updated: 2026-02-20 14:30
+
+[02] Ý tưởng: PDF to MD và lưu vào PARA (01.projects)
+      Tags: idea, pdf, markdown
+      ID: f012baef-1078-4ffd-b2d7-e5d7cbae4193
+      Updated: 2026-02-20 10:15
+```
+
+**Using indices in tool calls:**
+- Get index 01: `get_document index=1`
+- Get index 02: `get_document index=2`
+- View details: `get_document index=1` returns full document JSON
+- Delete index 01: `delete_document index=1` (be careful!)
+- Update index 02: `update_document index=2 name="Updated Title"`
+- Link documents: `link_entities from_index=1 to_index=2`
+- Unlink documents: `unlink_entities from_index=1 to_index=2`
+
+**Index numbers are based on update time (newest first)**, so index 01 is the most recently updated document.
+
+You can also still use document IDs if you prefer: `get_document id=3ca920c5-1c66-4a66-b5fe-103c83c87c70`
 
 ## 2-Step Pattern for Long Content
 
