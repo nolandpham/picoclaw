@@ -2,8 +2,6 @@ package tools
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -20,15 +18,14 @@ const (
 )
 
 type paraMCPDocument struct {
-	ID           string    `json:"id"`
-	Name         string    `json:"name"`
-	Category     string    `json:"category"`
-	Content      string    `json:"content"`
-	ContentHash  string    `json:"content_hash"`
-	Tags         []string  `json:"tags"`
-	LinkedIDs    []string  `json:"linked_ids"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Category  string    `json:"category"`
+	Content   string    `json:"content"`
+	Tags      []string  `json:"tags"`
+	LinkedIDs []string  `json:"linked_ids"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type paraMCPConfig struct {
@@ -186,110 +183,6 @@ func toCommaString(value interface{}) string {
 	}
 }
 
-// computeContentHash generates a SHA256 hash of document content for duplicate detection
-func computeContentHash(name, category, content string) string {
-	combined := fmt.Sprintf("%s::%s::%s", category, name, content)
-	hash := sha256.Sum256([]byte(combined))
-	return hex.EncodeToString(hash[:])
-}
-
-// findDuplicateByHash searches for documents with the same content hash, computing hashes on the fly
-func findDuplicateByHash(docsMap map[string]*paraMCPDocument, targetHash string, targetName, targetCategory, targetContent string) *paraMCPDocument {
-	for _, doc := range docsMap {
-		// If document has stored hash, use it
-		if doc.ContentHash != "" {
-			if doc.ContentHash == targetHash {
-				return doc
-			}
-		} else {
-			// Compute hash on the fly for documents without stored hash
-			docHash := computeContentHash(doc.Name, doc.Category, doc.Content)
-			if docHash == targetHash {
-				return doc
-			}
-		}
-	}
-	return nil
-}
-
-// findSimilarDocuments finds documents with similar names or content (for suggestions)
-func findSimilarDocuments(docsMap map[string]*paraMCPDocument, name, category string) []*paraMCPDocument {
-	var similar []*paraMCPDocument
-	nameLower := strings.ToLower(name)
-	
-	for _, doc := range docsMap {
-		if doc.Category != category {
-			continue
-		}
-		docNameLower := strings.ToLower(doc.Name)
-		// Check if names are very similar (70%+ match on keywords)
-		if stringSimilarity(nameLower, docNameLower) > 0.7 {
-			similar = append(similar, doc)
-		}
-	}
-	
-	return similar
-}
-
-// stringSimilarity calculates Levenshtein-like similarity (simple version)
-func stringSimilarity(s1, s2 string) float64 {
-	maxLen := len(s1)
-	if len(s2) > maxLen {
-		maxLen = len(s2)
-	}
-	if maxLen == 0 {
-		return 1.0
-	}
-	
-	distance := levenshteinDistance(s1, s2)
-	return 1.0 - (float64(distance) / float64(maxLen))
-}
-
-// levenshteinDistance calculates the Levenshtein distance between two strings
-func levenshteinDistance(s1, s2 string) int {
-	len1 := len(s1)
-	len2 := len(s2)
-	
-	if len1 == 0 {
-		return len2
-	}
-	if len2 == 0 {
-		return len1
-	}
-	
-	// Create distance matrix
-	d := make([][]int, len1+1)
-	for i := range d {
-		d[i] = make([]int, len2+1)
-	}
-	
-	for i := 0; i <= len1; i++ {
-		d[i][0] = i
-	}
-	for j := 0; j <= len2; j++ {
-		d[0][j] = j
-	}
-	
-	for i := 1; i <= len1; i++ {
-		for j := 1; j <= len2; j++ {
-			cost := 0
-			if s1[i-1] != s2[j-1] {
-				cost = 1
-			}
-			d[i][j] = min(d[i-1][j]+1, min(d[i][j-1]+1, d[i-1][j-1]+cost))
-		}
-	}
-	
-	return d[len1][len2]
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func NewParaMCPTools(workspace string) []Tool {
 	base := newParaMCPToolBase(workspace)
 	return []Tool{
@@ -302,7 +195,6 @@ func NewParaMCPTools(workspace string) []Tool {
 		&unlinkEntitiesTool{base: base},
 		&getStatsTool{base: base},
 		&getStatusTool{base: base},
-		&checkDuplicatesTool{base: base},
 	}
 }
 
@@ -504,38 +396,9 @@ func (t *addDocumentTool) Execute(ctx context.Context, args map[string]interface
 		return ErrorResult("category is required")
 	}
 
-	content := ""
-	if c, ok := args["content"]; ok {
-		content = fmt.Sprintf("%v", c)
-	}
-
-	// Check for duplicates before adding
-	docsMap, err := t.base.loadDocuments()
-	if err == nil {
-		contentHash := computeContentHash(name, category, content)
-		
-		// Check for exact duplicate (same hash)
-		if dup := findDuplicateByHash(docsMap, contentHash, name, category, content); dup != nil {
-			return ErrorResult(fmt.Sprintf("DUPLICATE DETECTED: Document with identical content already exists:\n  ID: %s\n  Name: %s\n  Category: %s\n  Created: %s\n\nUse update_document to modify existing document instead.", dup.ID, dup.Name, dup.Category, dup.CreatedAt.Format("2006-01-02 15:04")))
-		}
-		
-		// Check for similar documents (same category, similar name)
-		similar := findSimilarDocuments(docsMap, name, category)
-		if len(similar) > 0 {
-			var suggestion strings.Builder
-			suggestion.WriteString(fmt.Sprintf("WARNING: Found %d similar document(s) in %s category:\n", len(similar), category))
-			for i, sim := range similar {
-				if i < 3 { // Show max 3 suggestions
-					suggestion.WriteString(fmt.Sprintf("  [%d] %s (ID: %s, Updated: %s)\n", i+1, sim.Name, sim.ID, sim.UpdatedAt.Format("2006-01-02 15:04")))
-				}
-			}
-			suggestion.WriteString("\nConsider if you should update existing document instead. Proceeding with add...\n")
-		}
-	}
-
 	cmdArgs := []string{"add", category, name}
-	if content != "" {
-		cmdArgs = append(cmdArgs, "--content", content)
+	if content, ok := args["content"]; ok {
+		cmdArgs = append(cmdArgs, "--content", fmt.Sprintf("%v", content))
 	}
 	if tags, ok := args["tags"]; ok {
 		cmdArgs = append(cmdArgs, "--tags", toCommaString(tags))
@@ -951,132 +814,6 @@ func (t *getStatusTool) Execute(_ context.Context, _ map[string]interface{}) *To
 	text, err := encodePrettyJSON(status)
 	if err != nil {
 		return ErrorResult(fmt.Sprintf("get status: %v", err)).WithError(err)
-	}
-
-	return UserResult(text)
-}
-type checkDuplicatesTool struct{ base paraMCPToolBase }
-
-func (t *checkDuplicatesTool) Name() string { return "check_duplicates" }
-
-func (t *checkDuplicatesTool) Description() string {
-	return "Check for duplicate or similar documents in PARA by name, category, or content hash."
-}
-
-func (t *checkDuplicatesTool) Parameters() map[string]interface{} {
-	return map[string]interface{}{
-		"type": "object",
-		"properties": map[string]interface{}{
-			"name": map[string]interface{}{
-				"type":        "string",
-				"description": "Document name to check for duplicates",
-			},
-			"category": map[string]interface{}{
-				"type":        "string",
-				"description": "PARA category to filter search (optional)",
-			},
-			"content": map[string]interface{}{
-				"type":        "string",
-				"description": "Document content to check for exact duplicates (optional)",
-			},
-			"show_all_similar": map[string]interface{}{
-				"type":        "boolean",
-				"description": "Show all similar documents instead of just top 3 (default: false)",
-			},
-		},
-		"required": []string{"name"},
-	}
-}
-
-type duplicateCheckResult struct {
-	Name              string                 `json:"name"`
-	Category          string                 `json:"category,omitempty"`
-	ExactDuplicate    *paraMCPDocument       `json:"exact_duplicate,omitempty"`
-	SimilarDocuments  []*paraMCPDocument     `json:"similar_documents,omitempty"`
-	ContentHash       string                 `json:"content_hash,omitempty"`
-	Message           string                 `json:"message"`
-}
-
-func (t *checkDuplicatesTool) Execute(_ context.Context, args map[string]interface{}) *ToolResult {
-	name, _ := args["name"].(string)
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return ErrorResult("name is required")
-	}
-
-	category, _ := args["category"].(string)
-	category = strings.TrimSpace(category)
-
-	content := ""
-	if c, ok := args["content"]; ok {
-		content = fmt.Sprintf("%v", c)
-	}
-
-	showAll := false
-	if sa, ok := args["show_all_similar"].(bool); ok {
-		showAll = sa
-	}
-
-	docsMap, err := t.base.loadDocuments()
-	if err != nil {
-		return ErrorResult(fmt.Sprintf("check duplicates: %v", err)).WithError(err)
-	}
-
-	result := duplicateCheckResult{
-		Name:     name,
-		Category: category,
-	}
-
-	// Check for exact content duplicate
-	if content != "" {
-		contentHash := computeContentHash(name, category, content)
-		result.ContentHash = contentHash
-
-		if dup := findDuplicateByHash(docsMap, contentHash, name, category, content); dup != nil {
-			result.ExactDuplicate = dup
-			result.Message = fmt.Sprintf("EXACT DUPLICATE FOUND: Document '%s' (ID: %s) has identical content", dup.Name, dup.ID)
-		}
-	}
-
-	// Check for similar documents
-	var similar []*paraMCPDocument
-	if category != "" {
-		similar = findSimilarDocuments(docsMap, name, category)
-	} else {
-		// Search in all categories
-		tmpMap := make(map[string]*paraMCPDocument)
-		docs := make([]*paraMCPDocument, 0, len(docsMap))
-		for _, doc := range docsMap {
-			tmpMap[doc.ID] = doc
-			docs = append(docs, doc)
-		}
-
-		nameLower := strings.ToLower(name)
-		for _, doc := range docs {
-			docNameLower := strings.ToLower(doc.Name)
-			if stringSimilarity(nameLower, docNameLower) > 0.7 {
-				similar = append(similar, doc)
-			}
-		}
-	}
-
-	// Limit similar results unless show_all_similar is true
-	if len(similar) > 0 && !showAll && len(similar) > 3 {
-		similar = similar[:3]
-		result.Message += fmt.Sprintf(" (%d more similar documents exist, use show_all_similar=true to see all)", len(similar)-3)
-	}
-
-	result.SimilarDocuments = similar
-
-	if result.ExactDuplicate == nil && len(result.SimilarDocuments) == 0 {
-		result.Message = "No duplicates or similar documents found."
-	} else if result.ExactDuplicate == nil && len(result.SimilarDocuments) > 0 {
-		result.Message = fmt.Sprintf("Found %d similar document(s), but no exact duplicates.", len(result.SimilarDocuments))
-	}
-
-	text, err := encodePrettyJSON(result)
-	if err != nil {
-		return ErrorResult(fmt.Sprintf("check duplicates: %v", err)).WithError(err)
 	}
 
 	return UserResult(text)
