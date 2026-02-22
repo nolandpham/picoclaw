@@ -1,4 +1,11 @@
-.PHONY: all build install uninstall clean help test
+.PHONY: all build install uninstall clean help test ask
+
+# Positional args support for: make ask "your prompt here"
+ASK_PROMPT := $(strip $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS)))
+ifneq (,$(filter ask,$(MAKECMDGOALS)))
+%:
+	@:
+endif
 
 # Build variables
 BINARY_NAME=picoclaw
@@ -151,6 +158,30 @@ check: deps fmt vet test
 run: build
 	@$(BUILD_DIR)/$(BINARY_NAME) $(ARGS)
 
+## ask: Build and ask agent with prompt string
+ask:
+	@if [ -z "$(ASK_PROMPT)" ]; then \
+		echo "Usage: make ask \"prompt string\""; \
+		exit 1; \
+	fi
+	@if [ ! -x "$(BUILD_DIR)/$(BINARY_NAME)" ]; then \
+		echo "Binary not found, building first..."; \
+		$(MAKE) build; \
+	fi
+	@output="$$($(BUILD_DIR)/$(BINARY_NAME) agent -m "$(ASK_PROMPT)" 2>&1)"; \
+	status=$$?; \
+	answer="$$(printf "%s\n" "$$output" | sed -n '/^🦞 /,$$p')"; \
+	if [ -n "$$answer" ]; then \
+		logs="$$(printf "%s\n" "$$output" | sed '/^🦞 /,$$d')"; \
+		if [ -n "$$logs" ]; then printf "%s\n" "$$logs"; fi; \
+		echo "_____________________________________________"; \
+		printf "%s\n" "$$answer"; \
+		echo "_____________________________________________"; \
+	else \
+		printf "%s\n" "$$output"; \
+	fi; \
+	exit $$status
+
 ## help: Show this help message
 help:
 	@echo "picoclaw Makefile"
@@ -163,6 +194,7 @@ help:
 	@echo ""
 	@echo "Examples:"
 	@echo "  make build              # Build for current platform"
+	@echo "  make ask \"hello\"      # Run agent with message"
 	@echo "  make install            # Install to ~/.local/bin"
 	@echo "  make uninstall          # Remove from /usr/local/bin"
 	@echo "  make install-skills     # Install skills to workspace"
