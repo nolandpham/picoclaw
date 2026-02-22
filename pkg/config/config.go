@@ -53,6 +53,7 @@ type Config struct {
 	Tools     ToolsConfig     `json:"tools"`
 	Heartbeat HeartbeatConfig `json:"heartbeat"`
 	Devices   DevicesConfig   `json:"devices"`
+	Sync      SyncConfig      `json:"sync,omitempty"`
 	mu        sync.RWMutex
 }
 
@@ -247,6 +248,28 @@ type HeartbeatConfig struct {
 type DevicesConfig struct {
 	Enabled    bool `json:"enabled" env:"PICOCLAW_DEVICES_ENABLED"`
 	MonitorUSB bool `json:"monitor_usb" env:"PICOCLAW_DEVICES_MONITOR_USB"`
+}
+
+type SyncConfig struct {
+	Enabled         bool         `json:"enabled" env:"PICOCLAW_SYNC_ENABLED"`
+	IntervalMinutes int          `json:"interval_minutes" env:"PICOCLAW_SYNC_INTERVAL_MINUTES"`
+	Mode            string       `json:"mode" env:"PICOCLAW_SYNC_MODE"`
+	R2              R2SyncConfig `json:"r2"`
+}
+
+type R2SyncConfig struct {
+	Enabled         bool   `json:"enabled" env:"PICOCLAW_SYNC_R2_ENABLED"`
+	AccountID       string `json:"account_id" env:"PICOCLAW_SYNC_R2_ACCOUNT_ID"`
+	AccessKeyID     string `json:"access_key_id" env:"PICOCLAW_SYNC_R2_ACCESS_KEY_ID"`
+	SecretAccessKey string `json:"secret_access_key" env:"PICOCLAW_SYNC_R2_SECRET_ACCESS_KEY"`
+	Bucket          string `json:"bucket" env:"PICOCLAW_SYNC_R2_BUCKET"`
+	Prefix          string `json:"prefix" env:"PICOCLAW_SYNC_R2_PREFIX"`
+	SyncWorkspace   bool   `json:"sync_workspace" env:"PICOCLAW_SYNC_R2_SYNC_WORKSPACE"`
+	SyncSessions    bool   `json:"sync_sessions" env:"PICOCLAW_SYNC_R2_SYNC_SESSIONS"`
+	SyncMemory      bool   `json:"sync_memory" env:"PICOCLAW_SYNC_R2_SYNC_MEMORY"`
+	SyncConfig      bool   `json:"sync_config" env:"PICOCLAW_SYNC_R2_SYNC_CONFIG"`
+	SyncAuth        bool   `json:"sync_auth" env:"PICOCLAW_SYNC_R2_SYNC_AUTH"`
+	SyncSkills      bool   `json:"sync_skills" env:"PICOCLAW_SYNC_R2_SYNC_SKILLS"`
 }
 
 type ProvidersConfig struct {
@@ -447,6 +470,25 @@ func DefaultConfig() *Config {
 		Devices: DevicesConfig{
 			Enabled:    false,
 			MonitorUSB: true,
+		},
+		Sync: SyncConfig{
+			Enabled:         false,
+			IntervalMinutes: 5,
+			Mode:            "r2-first",
+			R2: R2SyncConfig{
+				Enabled:         false,
+				AccountID:       "",
+				AccessKeyID:     "",
+				SecretAccessKey: "",
+				Bucket:          "",
+				Prefix:          "picoclaw-state",
+				SyncWorkspace:   true,
+				SyncSessions:    true,
+				SyncMemory:      true,
+				SyncConfig:      true,
+				SyncAuth:        true,
+				SyncSkills:      true,
+			},
 		},
 	}
 }

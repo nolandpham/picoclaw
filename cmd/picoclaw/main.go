@@ -36,6 +36,7 @@ import (
 	"github.com/sipeed/picoclaw/pkg/providers"
 	"github.com/sipeed/picoclaw/pkg/skills"
 	"github.com/sipeed/picoclaw/pkg/state"
+	"github.com/sipeed/picoclaw/pkg/statesync"
 	"github.com/sipeed/picoclaw/pkg/tools"
 	"github.com/sipeed/picoclaw/pkg/voice"
 )
@@ -654,6 +655,20 @@ func gatewayCmd() {
 	}
 	fmt.Println("✓ Heartbeat service started")
 
+	var syncService *statesync.Service
+	if cfg.Sync.Enabled && cfg.Sync.R2.Enabled {
+		syncService, err = statesync.NewService(cfg, cfg.WorkspacePath())
+		if err != nil {
+			fmt.Printf("Error creating state sync service: %v\n", err)
+		} else {
+			if err := syncService.Start(); err != nil {
+				fmt.Printf("Error starting state sync service: %v\n", err)
+			} else {
+				fmt.Println("✓ R2 state sync service started")
+			}
+		}
+	}
+
 	stateManager := state.NewManager(cfg.WorkspacePath())
 	deviceService := devices.NewService(devices.Config{
 		Enabled:    cfg.Devices.Enabled,
@@ -688,6 +703,9 @@ func gatewayCmd() {
 	cancel()
 	healthServer.Stop(context.Background())
 	deviceService.Stop()
+	if syncService != nil {
+		syncService.Stop()
+	}
 	heartbeatService.Stop()
 	cronService.Stop()
 	agentLoop.Stop()

@@ -141,6 +141,25 @@
     "enabled": false,
     "monitor_usb": true
   },
+  "sync": {
+    "enabled": false,
+    "interval_minutes": 5,
+    "mode": "r2-first",
+    "r2": {
+      "enabled": false,
+      "account_id": "YOUR_CLOUDFLARE_ACCOUNT_ID",
+      "access_key_id": "YOUR_R2_ACCESS_KEY_ID",
+      "secret_access_key": "YOUR_R2_SECRET_ACCESS_KEY",
+      "bucket": "YOUR_R2_BUCKET",
+      "prefix": "picoclaw-state",
+      "sync_workspace": true,
+      "sync_sessions": true,
+      "sync_memory": true,
+      "sync_config": true,
+      "sync_auth": true,
+      "sync_skills": true
+    }
+  },
   "gateway": {
     "host": "0.0.0.0",
     "port": 18790

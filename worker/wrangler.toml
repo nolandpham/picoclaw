@@ -1,0 +1,9 @@
+name = "picoclaw-worker"
+main = "src/index.ts"
+compatibility_date = "2026-02-22"
+workers_dev = true
+account_id = "7c06b80cd8ee82eda9b6341288a6c39b"
+
+[vars]
+APP_NAME = "picoclaw"
+ENVIRONMENT = "preview"
