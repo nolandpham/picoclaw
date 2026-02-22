@@ -258,6 +258,9 @@ That's it! You have a working AI assistant in 2 minutes.
 
 Talk to your picoclaw through Telegram, Discord, DingTalk, or LINE
 
+> 🚀 Production setup guide (Telegram + Cloudflare R2 state sync):
+> See `docs/deploy_telegram_r2.md` for a step-by-step checklist and smoke tests.
+
 | Channel      | Setup                              |
 | ------------ | ---------------------------------- |
 | **Telegram** | Easy (just a token)                |
