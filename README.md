@@ -260,6 +260,9 @@ Talk to your picoclaw through Telegram, Discord, DingTalk, or LINE
 
 > 🚀 Production setup guide (Telegram + Cloudflare R2 state sync):
 > See `docs/deploy_telegram_r2.md` for a step-by-step checklist and smoke tests.
+>
+> ☁️ Cloudflare Worker independent runtime guide (Telegram webhook + AI on Worker):
+> See `docs/cloudflare_worker_production.md`.
 
 | Channel      | Setup                              |
 | ------------ | ---------------------------------- |

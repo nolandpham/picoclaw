@@ -6,4 +6,7 @@ account_id = "7c06b80cd8ee82eda9b6341288a6c39b"
 
 [vars]
 APP_NAME = "picoclaw"
-ENVIRONMENT = "preview"
+ENVIRONMENT = "production"
+AI_MODEL = "gpt-4o-mini"
+OPENAI_BASE_URL = "https://api.openai.com/v1"
+TELEGRAM_ALLOW_FROM = ""
